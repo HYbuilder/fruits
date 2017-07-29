@@ -1,0 +1,256 @@
+<!DOCTYPE html>  
+<html>  
+<head>  
+    <meta charset="utf-8" />  
+    <title></title> 
+	<style>
+
+	</style>	
+</head>  
+	
+<body>  
+    <div id="legend"></div>
+</body>
+<script src='lufylegend-1.10.1.min.js'></script>
+<script>
+	var imgdata = [
+		{path:'images/back.jpg',name:'back'},
+		{path:'images/player.png',name:'player'},
+		{path:'images/item0.png',name:'item0'},
+		{path:'images/item1.png',name:'item1'},
+		{path:'images/item2.png',name:'item2'},
+		{path:'images/item3.png',name:'item3'},
+		{path:'images/item4.png',name:'item4'},
+		{path:'images/item5.png',name:'item5'},
+		{path:'images/item6.png',name:'item6'},
+		{path:'images/item7.png',name:'item7'}
+	];
+	var datalist,backlayer,playerLayer,itemLayer,hero,step,stepindex,point,pointTxt,hp,hpTxt;
+	var speed,topSpeed,num,offsetSpeed,count,total;
+    
+	function initData(){	
+		step=25;
+		stepindex=0;//stepindex是计算器,每等于step一次时物品出现一个物品，即控制物品出现的频率
+		point = 0;//分数
+		hp = 3;//生命
+		speed = 5;//物品掉落的初始速度
+		topSpeed = 40;//物品最高掉落速度
+		num = 15;//物品掉落速度分阶标准，每累计num分speed递增
+		offsetSpeed = 1;//物品掉落速度的增加幅度
+		count = 0;//统计目前已出现的物品数
+		total = 4;//当前屏显示最多的物品数
+	}
+	
+	LInit(50,'legend',800,450,main);
+	
+	function main(){
+		LLoadManage.load(imgdata,null,gameInit);
+	}
+	
+	function gameInit(result){
+	    initData();
+		datalist = result;
+		backlayer = new LSprite();
+		itemlayer = new LSprite();//物品层，
+		addChild(backlayer);
+		addBack();
+		addPlayer();
+		addEvent();
+		backlayer.addChild(itemlayer);
+		addText();//显示文本信息
+		
+		overlayer = new LSprite();
+		backlayer.addChild(overlayer);
+	}
+
+	//背景层
+	function addBack(){
+		var bitmapdata = new LBitmapData(datalist['back']);
+		var bitmap = new LBitmap(bitmapdata);
+		backlayer.addChild(bitmap);
+	}
+	
+	//人物层
+	function addPlayer(){
+		playerLayer = new LSprite();
+		backlayer.addChild(playerLayer);
+		hero = new player();
+		hero.x = 350;
+		hero.y = 380;
+		playerLayer.addChild(hero);		
+	}
+	
+	//人物
+	function player(){
+		base(this,LSprite,[]);
+		var self = this;
+		self.mode = '';
+		var list = LGlobal.divideCoordinate(256,256,4,4);
+		var data = new LBitmapData(datalist['player'],0,0,64,64);
+		
+		self.anime = new LAnimation(self,data,list);
+		
+		self.step = 2;//控制人物步伐的速度
+		self.stepindex = 0;//控制人物步伐的速度
+	}
+	
+	//通过prototype属性为player添加新的方法run()
+	player.prototype.run = function(){
+		var self = this;
+		if(self.stepindex++ > self.step){
+			self.stepindex = 0;
+			self.anime.onframe();
+		}
+		if(self.mode=='left'&& self.x>10){
+			self.x = self.x - 10;
+		}else if(self.mode=='right'&& self.x<LGlobal.width-self.getWidth()){
+			self.x = self.x + 10;
+		}
+	}
+
+	function addEvent(){
+		backlayer.addEventListener(LEvent.ENTER_FRAME,onframe);
+		backlayer.addEventListener(LMouseEvent.MOUSE_DOWN,down);
+		backlayer.addEventListener(LMouseEvent.MOUSE_UP,up);
+	}
+	
+	//播放动画
+	function onframe(){
+		hero.run();
+		
+		for(var i=0;i<itemlayer.childList.length;i++){
+			itemlayer.childList[i].run();
+			if(itemlayer.childList[i].mode=="die"){//从物品层移除超出物品层的物品
+				itemlayer.removeChild(itemlayer.childList[i]);
+				addItem();//当物品被移除后 马上出现新的物品
+			}
+		}
+		
+       	stepindex++;		
+		if(stepindex>step){ //控制物品出现的间隔时间
+			stepindex = 0;
+			count++;
+			if(count<=total){
+				addItem();//添加物品
+			}
+		}	
+        showText();
+		
+		if(hp <= 0){
+			gameOver();
+			return;
+		}
+	}
+	
+	//鼠标按下事件
+	function down(e){
+		if(e.selfX<LGlobal.width*0.5){
+			hero.mode = 'left';
+			hero.anime.setAction(1);//使用第二组图，即第二行
+		}else{
+			hero.mode = 'right';
+			hero.anime.setAction(2);//使用第三组图，即第三行
+		}
+	}
+	
+	//鼠标弹起事件
+	function up(e){
+		hero.mode = '';
+		hero.anime.setAction(0);//使用第一组图，即第一行
+	}
+	
+	//添加物品
+	function addItem(){
+		var item = new Item();
+		item.x = 20 + Math.floor(Math.random()*(LGlobal.width - 50));//物品的随机坐标
+		itemlayer.addChild(item);//添加物品			
+	}
+	
+	//物品
+	function Item(){
+		base(this,LSprite,[]);
+		var self = this;
+		self.mode = '';
+		var index = Math.floor(Math.random()*8);//获取随机数作为物品的ID
+		self.value = index < 4 ? 1:-1;//根据下标判断物品是水果还是障碍物
+		var bitmap = new LBitmap(new LBitmapData(datalist["item"+index]));
+		self.addChild(bitmap);
+	}
+	
+	//让物品掉落
+	Item.prototype.run=function(){
+		var self=this;
+		self.y += speed;
+		var hit = self.checkHit();
+		if(hit||self.y > LGlobal.height){//当物品和人物有碰撞或物品超出画布，设置物品状态
+			self.mode="die";
+		}     		
+	}
+	
+	//检测人物和物品是否有接触碰撞
+	Item.prototype.checkHit=function(){
+		var self = this;
+		if(LGlobal.hitTestArc(self,hero)){						
+			if(self.value >0){//水果加分
+				point += 1;	
+				if(point%num==0){//达到提升物品掉落速度标准，增加生命
+					period = Math.floor(point/num);
+					speed+= offsetSpeed;			
+					hp++;					
+				}               				
+				if(speed>=topSpeed){
+					speed = topSpeed;
+				}
+							
+			}else{ //障碍物扣减生命
+				hp -= 1;
+			}
+			return true;//发生碰撞返回true值
+		}
+		return false;//没有发生碰撞返回false值	
+	}
+	
+	//添加文本区
+	function addText(){
+		hpTxt = new LTextField();
+		hpTxt.color = "#ff0000";
+		hpTxt.size = 30;
+		hpTxt.x = 10;
+		hpTxt.y = 10;
+		backlayer.addChild(hpTxt);
+		
+		pointTxt = new LTextField();
+		pointTxt.color = "#ffffff";
+		pointTxt.size = 30;
+		pointTxt.x = 10;
+		pointTxt.y = 50;
+		backlayer.addChild(pointTxt);
+		showText();
+	}
+	
+	//显示文本信息
+	function showText(){
+		hpTxt.text = 'HP:'+hp;
+		pointTxt.text = 'Score:'+point;
+	}
+	
+	function gameOver(){
+		backlayer.die();
+		itemlayer.removeAllChild();
+		var txt = new LTextField();
+		txt.color = "#ff0000";
+		txt.size = 50;
+		txt.text = "GAME OVER";
+		txt.x = (LGlobal.width - txt.getWidth())*0.5;
+		txt.y = 100;
+		overlayer.addChild(txt);
+		backlayer.addEventListener(LMouseEvent.MOUSE_DOWN,
+		function (event){
+			backlayer.die();
+			overlayer.removeAllChild();
+			initData();
+			addEvent();
+		});
+	}
+</script>  
+</html>  
